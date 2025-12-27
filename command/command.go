@@ -83,5 +83,8 @@ func Run(c *irc.Client, sender, where string, args []string) {
 		commands[foundCommand].Handle(c, sender, where, args)
 	} else {
 		c.Send(sender, where, "sorry you can't run that command :(")
+		c.Send(env.OWNER, env.OWNER,
+			sender+" tried to run "+commands[foundCommand].Name,
+		)
 	}
 }
