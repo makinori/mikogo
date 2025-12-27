@@ -13,7 +13,7 @@ func handleGeneralInfo(c *irc.Client, sender, where string, args []string) {
 	out += "made by: https://maki.cafe\n"
 	out += "named by: https://micae.la\n"
 	out += "https://github.com/makinori/mikogo\n"
-	c.Send(sender, where, strings.TrimSpace(out))
+	c.Send(where, strings.TrimSpace(out))
 }
 
 var CommandGeneralInfo = Command{

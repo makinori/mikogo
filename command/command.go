@@ -59,7 +59,7 @@ func canSenderRunCommand(sender string, command *Command) bool {
 // args[0] should be prefix stripped
 func Run(c *irc.Client, sender, where string, args []string) {
 	if len(args) == 0 {
-		c.Send(sender, where, getUnknownCommandMsg(where))
+		c.Send(where, getUnknownCommandMsg(where))
 		return
 	}
 
@@ -75,16 +75,14 @@ func Run(c *irc.Client, sender, where string, args []string) {
 		}
 	}
 	if foundCommand == -1 {
-		c.Send(sender, where, getUnknownCommandMsg(where))
+		c.Send(where, getUnknownCommandMsg(where))
 		return
 	}
 
 	if canSenderRunCommand(sender, commands[foundCommand]) {
 		commands[foundCommand].Handle(c, sender, where, args)
 	} else {
-		c.Send(sender, where, "sorry you can't run that command :(")
-		c.Send(env.OWNER, env.OWNER,
-			sender+" tried to run "+commands[foundCommand].Name,
-		)
+		c.Send(where, "sorry you can't run that command :(")
+		c.Send(env.OWNER, sender+" tried to run "+commands[foundCommand].Name)
 	}
 }

@@ -5,7 +5,7 @@ import (
 )
 
 func handleAdminChan(c *irc.Client, sender, where string, args []string) {
-	c.Send(sender, where, "not implemented lol")
+	c.Send(where, "not implemented lol")
 }
 
 var CommandAdminChan = Command{

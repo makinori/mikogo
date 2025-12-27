@@ -7,7 +7,6 @@ import (
 	"io"
 	"log/slog"
 	"math/rand"
-	"net"
 	"regexp"
 	"strings"
 	"time"
@@ -29,8 +28,9 @@ var (
 )
 
 type Client struct {
-	address string
-	active  bool
+	address      string
+	botHandleMsg func(sender, where, msg string)
+	active       bool // for starting/stopping the client
 
 	Conn  *tls.Conn
 	state ConnState
@@ -39,15 +39,14 @@ type Client struct {
 	host string
 }
 
-func (c *Client) Close() {
-	c.active = false
-	c.Conn.Close()
-}
-
 func (c *Client) MakePrivmsg(to string, msg string) string {
-	return fmt.Sprintf(":%s!%s@%s PRIVMSG %s :%s\r\n",
+	out := fmt.Sprintf(":%s!%s@%s PRIVMSG %s :%s\r\n",
 		env.NICK, c.user, c.host, to, msg,
 	)
+	if len(out) > 512 {
+		slog.Warn("sent message too large", "bytes", len(out))
+	}
+	return out
 }
 
 func (c *Client) writeBatch(to string, lines []string) {
@@ -59,18 +58,7 @@ func (c *Client) writeBatch(to string, lines []string) {
 	fmt.Fprintf(c.Conn, "BATCH -%s\r\n", id)
 }
 
-// bool true if channel
-func GetRecipient(sender, where string) string {
-	if strings.HasPrefix(where, "#") {
-		return where
-	} else {
-		return sender
-	}
-}
-
-func (c *Client) Send(sender, where, msg string) {
-	to := GetRecipient(sender, where)
-
+func (c *Client) Send(to, msg string) {
 	// TODO: handle messages over 512 bytes
 	// SplitStringBySpace function available in old branch
 
@@ -83,9 +71,7 @@ func (c *Client) Send(sender, where, msg string) {
 	c.writeBatch(to, lines)
 }
 
-type HandleMessageFunc func(sender, where, msg string)
-
-func (c *Client) handleMessage(msg string, botHandleMessage HandleMessageFunc) {
+func (c *Client) handleMessage(msg string) {
 	// debugMsg := msg
 	// debugMsg = strings.ReplaceAll(debugMsg, "\r", "\\r")
 	// debugMsg = strings.ReplaceAll(debugMsg, "\n", "\\n")
@@ -94,13 +80,19 @@ func (c *Client) handleMessage(msg string, botHandleMessage HandleMessageFunc) {
 	// handle privmsg first cause we dont want anyone to attack the below
 	matches := PRIVMSG_REGEXP.FindStringSubmatch(msg)
 	if len(matches) > 0 {
-		go botHandleMessage(matches[1], matches[2], matches[3])
+		sender := matches[1]
+		where := matches[2]
+		if !strings.HasPrefix(where, "#") {
+			// if direct message, "where" ends up being our nick
+			where = sender
+		}
+		go c.botHandleMsg(sender, where, matches[3])
 		return
 	}
 
 	if c.state == ConnStateConnecting &&
 		strings.Contains(msg, " 001 "+env.NICK+" ") {
-		slog.Info("connected to", "server", c.address)
+		slog.Info("connected", "server", c.address)
 		c.state = ConnStateConnected
 		return
 	}
@@ -128,43 +120,25 @@ func (c *Client) handleMessage(msg string, botHandleMessage HandleMessageFunc) {
 	}
 }
 
-func (c *Client) loop(botHandleMessage HandleMessageFunc) {
-	reader := bufio.NewReader(c.Conn)
-	for {
-		msg, err := reader.ReadString('\n')
-		if err == io.EOF {
-			c.state = ConnStateDisconnected
-			slog.Error("server closed connection")
-			break
-		} else if err != nil {
-			slog.Error("failed to read message", "err", err)
-			continue
-		}
-		c.handleMessage(msg, botHandleMessage)
+func (c *Client) connect() {
+	if c.Conn != nil {
+		c.Conn.Close()
+		c.Conn = nil
 	}
-}
 
-func Init(
-	address string, handleMessage HandleMessageFunc,
-) (*Client, error) {
-	c := Client{
-		address: address,
-		active:  true,
-	}
+	c.state = ConnStateConnecting
 
 	var err error
-	c.Conn, err = tls.Dial("tcp", address, &tls.Config{
+	c.Conn, err = tls.Dial("tcp", c.address, &tls.Config{
 		InsecureSkipVerify: true,
 	})
-
-	// TODO: should keep trying as clients should auto reconnect forever
-
 	if err != nil {
-		return nil, err
+		slog.Warn(
+			"failed to connect. retrying...",
+			"err", err,
+		)
+		return
 	}
-
-	tcpConn, _ := c.Conn.NetConn().(*net.TCPConn)
-	tcpConn.SetKeepAlive(true)
 
 	// TODO: what if nick not available
 
@@ -180,23 +154,67 @@ func Init(
 	// self whois for privmsg prefix
 	fmt.Fprintf(c.Conn, "WHOIS %s\r\n", env.NICK)
 
-	go func() {
-		for {
-			if !c.active {
-				// user closed
-				return
-			}
-			if c.state == ConnStateDisconnected {
-				time.Sleep(time.Second * 5)
-				continue
-			}
-			// TODO: is this the correct way to do it?
-			fmt.Fprintf(c.Conn, "PING a\r\n")
-			time.Sleep(time.Second * 60)
+	reader := bufio.NewReader(c.Conn)
+	for {
+		msg, err := reader.ReadString('\n')
+		if err == io.EOF {
+			c.state = ConnStateDisconnected
+			c.Conn = nil
+			slog.Warn("disconnected. retrying...", "server", c.address)
+			break
+		} else if err != nil {
+			slog.Error("failed to read message", "err", err)
+			// can just move on i suppose?
+			continue
 		}
-	}()
+		c.handleMessage(msg)
+	}
+}
 
-	go c.loop(handleMessage)
+func (c *Client) connLoop() {
+	for {
+		if !c.active {
+			return
+		}
+		c.connect()
+		time.Sleep(time.Second * 10)
+	}
+}
+
+func (c *Client) pingLoop() {
+	// this loop will expire if closed.
+	// we need to reinit anyway if we wanna reconnect.
+	for {
+		if !c.active {
+			return
+		}
+		if c.Conn == nil || c.state != ConnStateConnected {
+			time.Sleep(time.Second * 5)
+			continue
+		}
+		fmt.Fprintf(c.Conn, "PING hi\r\n")
+		time.Sleep(time.Second * 60)
+	}
+}
+
+func (c *Client) Close() {
+	c.active = false
+	c.Conn.Close()
+}
+
+func Init(
+	address string, handleMsg func(sender, where, msg string),
+) (*Client, error) {
+	c := Client{
+		address:      address,
+		botHandleMsg: handleMsg,
+		active:       true,
+	}
+
+	// TODO: use recover()
+
+	go c.connLoop()
+	go c.pingLoop()
 
 	return &c, nil
 }

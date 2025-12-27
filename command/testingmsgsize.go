@@ -7,12 +7,11 @@ import (
 )
 
 func handleTestingMsgsize(c *irc.Client, sender, where string, args []string) {
-	c.Send(sender, where,
+	c.Send(where,
 		"will send a few long messages and print byte length",
 	)
 
-	to := irc.GetRecipient(sender, where)
-	overhead := len(c.MakePrivmsg(to, ""))
+	overhead := len(c.MakePrivmsg(where, ""))
 
 	sendOfNBytes := func(size int) {
 		paddingBytes := make([]byte, size-overhead)
@@ -20,14 +19,14 @@ func handleTestingMsgsize(c *irc.Client, sender, where string, args []string) {
 			paddingBytes[i] = '.'
 		}
 		info := fmt.Sprintf(
-			"text:%d overhead:%d total:%d ", size-overhead, overhead, size,
+			"total:%d text:%d overhead:%d ", size, size-overhead, overhead,
 		)
 		text := info + string(paddingBytes[len(info):])
-		msg := c.MakePrivmsg(to, text)
+		msg := c.MakePrivmsg(where, text)
 		if len(msg) == size {
 			fmt.Fprint(c.Conn, msg)
 		} else {
-			c.Send(sender, where, "failed to make message. should not happen")
+			c.Send(where, "failed to make message. should not happen")
 		}
 	}
 
@@ -37,7 +36,7 @@ func handleTestingMsgsize(c *irc.Client, sender, where string, args []string) {
 	sendOfNBytes(500)
 	sendOfNBytes(512)
 
-	c.Send(sender, where, "hopefully the 512 one came through\n"+
+	c.Send(where, "hopefully the 512 one came through\n"+
 		"will now send a few of 513 bytes and higher",
 	)
 

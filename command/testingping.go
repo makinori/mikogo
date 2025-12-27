@@ -5,7 +5,7 @@ import (
 )
 
 func handleTestingPing(c *irc.Client, sender, where string, args []string) {
-	c.Send(sender, where, "pong!")
+	c.Send(where, "pong!")
 }
 
 var CommandTestingPing = Command{

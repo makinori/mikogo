@@ -34,7 +34,7 @@ func handleGeneralHelp(c *irc.Client, sender, where string, args []string) {
 		}
 	}
 
-	c.Send(sender, where, strings.TrimSpace(out))
+	c.Send(where, strings.TrimSpace(out))
 }
 
 var CommandGeneralHelp = Command{
