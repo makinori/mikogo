@@ -1,0 +1,3 @@
+# mikogo
+
+cute irc bot
