@@ -19,7 +19,9 @@ func handleMsgsize(c *irc.Client, sender, where string, args []string) {
 		for i := range paddingBytes {
 			paddingBytes[i] = '.'
 		}
-		info := fmt.Sprintf("total:%d text:%d ", size, size-overhead)
+		info := fmt.Sprintf(
+			"text:%d overhead:%d total:%d ", size-overhead, overhead, size,
+		)
 		text := info + string(paddingBytes[len(info):])
 		msg := c.MakePrivmsg(to, text)
 		if len(msg) == size {
