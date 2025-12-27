@@ -36,12 +36,16 @@ func handleMsgsize(c *irc.Client, sender, where string, args []string) {
 	sendOfNBytes(400)
 	sendOfNBytes(500)
 	sendOfNBytes(512)
+
 	c.Send(sender, where, "hopefully the 512 one came through\n"+
 		"will now send a few of 513 bytes and higher",
 	)
+
 	sendOfNBytes(513)
 	sendOfNBytes(520)
 	sendOfNBytes(530)
+
+	// TODO: test c.Send with bigger than 512
 }
 
 var CommandTestingMsgsize = Command{
