@@ -13,13 +13,15 @@ func handleHelp(c *irc.Client, sender, where string, args []string) {
 
 	for i := range commands {
 		command := commands[i]
+		if !canSenderRunCommand(sender, command) {
+			continue
+		}
 		category, _ := categories.Get(command.Category)
 		category = append(category, command)
 		categories.Set(command.Category, category)
 	}
 
 	out := ""
-
 	if sender == env.OWNER {
 		out = "hi " + sender + " <3\n"
 	}

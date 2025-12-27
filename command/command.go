@@ -1,6 +1,7 @@
 package command
 
 import (
+	"slices"
 	"strings"
 
 	"github.com/makinori/mikogo/env"
@@ -8,8 +9,7 @@ import (
 )
 
 const (
-	Prefix            = "m/"
-	UnknownCommandMsg = "unknown command. use " + Prefix + "help"
+	Prefix = "m/"
 )
 
 type Command struct {
@@ -20,26 +20,47 @@ type Command struct {
 	Handle      func(c *irc.Client, sender, where string, args []string)
 }
 
-var commands = []*Command{}
+var (
+	commands = []*Command{}
+
+	ownerOnlyCategories = []string{
+		"testing",
+	}
+)
 
 func init() {
 	commands = append(commands,
 		&CommandGeneralHelp,
 		&CommandGeneralInfo,
-	)
 
-	if env.DEV {
-		commands = append(commands,
-			&CommandTestingPing,
-			&CommandTestingMsgsize,
-		)
+		&CommandTestingPing,
+		&CommandTestingMsgsize,
+	)
+}
+
+func getUnknownCommandMsg(where string) string {
+	if strings.HasPrefix(where, "#") {
+		return "unknown command. type " + Prefix + "help"
+	} else {
+		return "unknown command. type help"
 	}
+}
+
+func canSenderRunCommand(sender string, command *Command) bool {
+	if sender == env.OWNER {
+		return true
+	}
+	if command.OwnerOnly ||
+		slices.Contains(ownerOnlyCategories, command.Category) {
+		return false
+	}
+	return true
 }
 
 // args[0] should be prefix stripped
 func Run(c *irc.Client, sender, where string, args []string) {
 	if len(args) == 0 {
-		c.Send(sender, where, UnknownCommandMsg)
+		c.Send(sender, where, getUnknownCommandMsg(where))
 		return
 	}
 
@@ -55,9 +76,13 @@ func Run(c *irc.Client, sender, where string, args []string) {
 		}
 	}
 	if foundCommand == -1 {
-		c.Send(sender, where, UnknownCommandMsg)
+		c.Send(sender, where, getUnknownCommandMsg(where))
 		return
 	}
 
-	commands[foundCommand].Handle(c, sender, where, args)
+	if canSenderRunCommand(sender, commands[foundCommand]) {
+		commands[foundCommand].Handle(c, sender, where, args)
+	} else {
+		c.Send(sender, where, "sorry you can't run that command :(")
+	}
 }
