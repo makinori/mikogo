@@ -7,7 +7,7 @@ import (
 	"github.com/makinori/mikogo/irc"
 )
 
-func handleInfo(c *irc.Client, sender, where string, args []string) {
+func handleGeneralInfo(c *irc.Client, sender, where string, args []string) {
 	out := "hi im mikogo (commit=" + env.GIT_COMMIT +
 		" go=" + env.GetGoVersion() + ")\n"
 	out += "made by: https://maki.cafe\n"
@@ -20,6 +20,5 @@ var CommandGeneralInfo = Command{
 	Name:        "info",
 	Category:    "general",
 	Description: "about me",
-	OwnerOnly:   false,
-	Handle:      handleInfo,
+	Handle:      handleGeneralInfo,
 }

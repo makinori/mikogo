@@ -16,7 +16,6 @@ type Command struct {
 	Name        string
 	Category    string
 	Description string
-	OwnerOnly   bool
 	Handle      func(c *irc.Client, sender, where string, args []string)
 }
 
@@ -24,6 +23,7 @@ var (
 	commands = []*Command{}
 
 	ownerOnlyCategories = []string{
+		"admin",
 		"testing",
 	}
 )
@@ -32,6 +32,8 @@ func init() {
 	commands = append(commands,
 		&CommandGeneralHelp,
 		&CommandGeneralInfo,
+
+		&CommandAdminChan,
 
 		&CommandTestingPing,
 		&CommandTestingMsgsize,
@@ -50,11 +52,8 @@ func canSenderRunCommand(sender string, command *Command) bool {
 	if sender == env.OWNER {
 		return true
 	}
-	if command.OwnerOnly ||
-		slices.Contains(ownerOnlyCategories, command.Category) {
-		return false
-	}
-	return true
+	// if command.OwnerOnly ||
+	return !slices.Contains(ownerOnlyCategories, command.Category)
 }
 
 // args[0] should be prefix stripped

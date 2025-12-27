@@ -8,7 +8,7 @@ import (
 	"github.com/makinori/mikogo/irc"
 )
 
-func handleHelp(c *irc.Client, sender, where string, args []string) {
+func handleGeneralHelp(c *irc.Client, sender, where string, args []string) {
 	categories := orderedmap.NewOrderedMap[string, []*Command]()
 
 	for i := range commands {
@@ -41,6 +41,5 @@ var CommandGeneralHelp = Command{
 	Name:        "help",
 	Category:    "general",
 	Description: "show all commands",
-	OwnerOnly:   false,
-	Handle:      handleHelp,
+	Handle:      handleGeneralHelp,
 }

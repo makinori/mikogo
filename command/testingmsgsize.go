@@ -6,7 +6,7 @@ import (
 	"github.com/makinori/mikogo/irc"
 )
 
-func handleMsgsize(c *irc.Client, sender, where string, args []string) {
+func handleTestingMsgsize(c *irc.Client, sender, where string, args []string) {
 	c.Send(sender, where,
 		"will send a few long messages and print byte length",
 	)
@@ -52,6 +52,5 @@ var CommandTestingMsgsize = Command{
 	Name:        "msgsize",
 	Category:    "testing",
 	Description: "test max message size",
-	OwnerOnly:   false,
-	Handle:      handleMsgsize,
+	Handle:      handleTestingMsgsize,
 }
