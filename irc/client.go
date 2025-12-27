@@ -28,7 +28,7 @@ var (
 )
 
 type Client struct {
-	address      string
+	Address      string
 	botHandleMsg func(sender, where, msg string)
 	active       bool // for starting/stopping the client
 
@@ -92,7 +92,7 @@ func (c *Client) handleMessage(msg string) {
 
 	if c.state == ConnStateConnecting &&
 		strings.Contains(msg, " 001 "+env.NICK+" ") {
-		slog.Info("connected", "server", c.address)
+		slog.Info("connected", "server", c.Address)
 		c.state = ConnStateConnected
 		return
 	}
@@ -114,7 +114,7 @@ func (c *Client) handleMessage(msg string) {
 
 		c.user = matches[2]
 		c.host = matches[3]
-		slog.Info("got", "mask", c.user+"@"+c.host, "server", c.address)
+		slog.Info("got", "mask", c.user+"@"+c.host, "server", c.Address)
 
 		return
 	}
@@ -129,7 +129,7 @@ func (c *Client) connect() {
 	c.state = ConnStateConnecting
 
 	var err error
-	c.Conn, err = tls.Dial("tcp", c.address, &tls.Config{
+	c.Conn, err = tls.Dial("tcp", c.Address, &tls.Config{
 		InsecureSkipVerify: true,
 	})
 	if err != nil {
@@ -160,7 +160,7 @@ func (c *Client) connect() {
 		if err == io.EOF {
 			c.state = ConnStateDisconnected
 			c.Conn = nil
-			slog.Warn("disconnected. retrying...", "server", c.address)
+			slog.Warn("disconnected. retrying...", "server", c.Address)
 			break
 		} else if err != nil {
 			slog.Error("failed to read message", "err", err)
@@ -206,7 +206,7 @@ func Init(
 	address string, handleMsg func(sender, where, msg string),
 ) (*Client, error) {
 	c := Client{
-		address:      address,
+		Address:      address,
 		botHandleMsg: handleMsg,
 		active:       true,
 	}

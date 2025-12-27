@@ -1,3 +1,5 @@
+export CGO_ENABLED := "0"
+
 default:
 	@just --list
 
@@ -12,7 +14,6 @@ start:
 	DEV=1 go run -ldflags="-s -w \
 	-X 'github.com/makinori/mikogo/env.GIT_COMMIT=$(git rev-parse HEAD | head -c 8)'\
 	" .
-
 
 alias u := update
 # git pull, build and restart quadlet

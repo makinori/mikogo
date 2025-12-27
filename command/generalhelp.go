@@ -13,7 +13,7 @@ func handleGeneralHelp(c *irc.Client, sender, where string, args []string) {
 
 	for i := range commands {
 		command := commands[i]
-		if !canSenderRunCommand(sender, command) {
+		if !canSenderRunCommand(c, sender, command) {
 			continue
 		}
 		category, _ := categories.Get(command.Category)
@@ -30,7 +30,7 @@ func handleGeneralHelp(c *irc.Client, sender, where string, args []string) {
 		out += cat.Key + ":\n"
 		for i := range cat.Value {
 			command := cat.Value[i]
-			out += "- " + command.Name + ": " + command.Description + "\n"
+			out += "  " + command.Name + ": " + command.Description + "\n"
 		}
 	}
 

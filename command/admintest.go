@@ -6,7 +6,11 @@ import (
 	"github.com/makinori/mikogo/irc"
 )
 
-func handleTestingMsgsize(c *irc.Client, sender, where string, args []string) {
+func testPing(c *irc.Client, sender, where string) {
+	c.Send(where, "pong!")
+}
+
+func testMsgsize(c *irc.Client, sender, where string) {
 	c.Send(where,
 		"will send a few long messages and print byte length",
 	)
@@ -43,13 +47,25 @@ func handleTestingMsgsize(c *irc.Client, sender, where string, args []string) {
 	sendOfNBytes(513)
 	sendOfNBytes(520)
 	sendOfNBytes(530)
-
-	// TODO: test c.Send with bigger than 512
 }
 
-var CommandTestingMsgsize = Command{
-	Name:        "msgsize",
-	Category:    "testing",
-	Description: "test max message size",
-	Handle:      handleTestingMsgsize,
+func handleTest(c *irc.Client, sender, where string, args []string) {
+	if len(args) < 2 {
+		c.Send(where, "either: ping, msgsize")
+		return
+	}
+
+	switch args[1] {
+	case "ping":
+		testPing(c, sender, where)
+	case "msgsize":
+		testMsgsize(c, sender, where)
+	}
+}
+
+var CommandAdminTest = Command{
+	Name:        "test",
+	Category:    "admin",
+	Description: "various test functions",
+	Handle:      handleTest,
 }

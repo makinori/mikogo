@@ -33,10 +33,8 @@ func init() {
 		&CommandGeneralHelp,
 		&CommandGeneralInfo,
 
-		&CommandAdminChan,
-
-		&CommandTestingPing,
-		&CommandTestingMsgsize,
+		&CommandAdminServer,
+		&CommandAdminTest,
 	)
 }
 
@@ -48,11 +46,12 @@ func getUnknownCommandMsg(where string) string {
 	}
 }
 
-func canSenderRunCommand(sender string, command *Command) bool {
-	if sender == env.OWNER {
+func canSenderRunCommand(c *irc.Client, sender string, command *Command) bool {
+	// only allow on home server incase there's a malicious server
+	if c.Address == env.HOME_SERVER && sender == env.OWNER {
 		return true
 	}
-	// if command.OwnerOnly ||
+
 	return !slices.Contains(ownerOnlyCategories, command.Category)
 }
 
@@ -79,7 +78,7 @@ func Run(c *irc.Client, sender, where string, args []string) {
 		return
 	}
 
-	if canSenderRunCommand(sender, commands[foundCommand]) {
+	if canSenderRunCommand(c, sender, commands[foundCommand]) {
 		commands[foundCommand].Handle(c, sender, where, args)
 	} else {
 		c.Send(where, "sorry you can't run that command :(")
