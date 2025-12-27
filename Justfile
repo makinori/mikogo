@@ -13,3 +13,12 @@ start:
 	-X 'github.com/makinori/mikogo/env.GIT_COMMIT=$(git rev-parse HEAD | head -c 8)'\
 	" .
 
+
+alias u := update
+# git pull, build and restart quadlet
+[group("server")]
+update:
+	git pull
+	systemctl --user daemon-reload
+	systemctl --user start mikogo-build
+	systemctl --user restart mikogo
