@@ -9,5 +9,7 @@ ergo:
 alias s := start
 [group("dev")]
 start:
-	DEV=1 go run .
+	DEV=1 go run -ldflags="-s -w \
+	-X 'github.com/makinori/mikogo/env.GIT_COMMIT=$(git rev-parse HEAD | head -c 8)'\
+	" .
 

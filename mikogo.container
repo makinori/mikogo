@@ -1,0 +1,22 @@
+[Unit]
+Description=mikogo
+Wants=network-online.target
+After=network-online.target
+After=local-fs.target
+
+[Service]
+Restart=always
+TimeoutStartSec=900
+
+[Install]
+WantedBy=default.target
+
+[Container]
+HostName=mikogo
+Image=mikogo.build
+# AutoUpdate=registry
+
+# Volume=./data.db:/data.db
+
+EnvironmentFile=.env
+
