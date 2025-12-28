@@ -16,7 +16,7 @@ HostName=mikogo
 Image=mikogo.build
 # AutoUpdate=registry
 
-# Volume=./data.db:/data.db
+Volume=./data.db:/data.db
 
 EnvironmentFile=.env
 
