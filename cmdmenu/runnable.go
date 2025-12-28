@@ -1,19 +1,15 @@
 package cmdmenu
 
-import (
-	"unsafe"
-)
-
-type Runnable interface {
+type Runnable[T any] interface {
 	getName() string
 	Run(
-		args []string, userValue unsafe.Pointer,
+		args []string, userValue *T,
 		printUsage func(msg string),
-		parents ...Runnable,
+		parents ...Runnable[T],
 	)
 }
 
-func getCallStack(name string, parents []Runnable) (names string) {
+func getCallStack[T any](name string, parents []Runnable[T]) (names string) {
 	for i := range parents {
 		names += parents[i].getName() + " "
 	}

@@ -1,9 +1,5 @@
 package cmdmenu
 
-import (
-	"unsafe"
-)
-
 type Command[T any] struct {
 	Name   string
 	Args   int
@@ -16,12 +12,12 @@ func (c *Command[T]) getName() string {
 }
 
 func (c *Command[T]) Run(
-	args []string, userValue unsafe.Pointer,
+	args []string, userValue *T,
 	printUsage func(msg string),
-	parents ...Runnable,
+	parents ...Runnable[T],
 ) {
 	if c.Args == 0 || len(args) >= c.Args {
-		c.Handle((*T)(userValue), args)
+		c.Handle(userValue, args)
 		return
 	}
 	printUsage(

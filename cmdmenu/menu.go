@@ -2,12 +2,11 @@ package cmdmenu
 
 import (
 	"strings"
-	"unsafe"
 )
 
 type Menu[T any] struct {
 	Name     string
-	Commands []Runnable
+	Commands []Runnable[T]
 }
 
 func (m *Menu[T]) getName() string {
@@ -15,9 +14,9 @@ func (m *Menu[T]) getName() string {
 }
 
 func (m *Menu[T]) Run(
-	args []string, userValue unsafe.Pointer,
+	args []string, userValue *T,
 	printUsage func(msg string),
-	parents ...Runnable,
+	parents ...Runnable[T],
 ) {
 	if len(args) > 0 {
 		name := strings.ToLower(args[0])

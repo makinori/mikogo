@@ -2,7 +2,6 @@ package command
 
 import (
 	"strings"
-	"unsafe"
 
 	"github.com/makinori/mikogo/cmdmenu"
 	"github.com/makinori/mikogo/db"
@@ -69,39 +68,39 @@ func adminServerSetAddr(c *irc.Message, args []string) {
 
 var adminServer = cmdmenu.Menu[irc.Message]{
 	Name: "server",
-	Commands: []cmdmenu.Runnable{
-		&(cmdmenu.Command[irc.Message]{
+	Commands: []cmdmenu.Runnable[irc.Message]{
+		&cmdmenu.Command[irc.Message]{
 			Name:   "list",
 			Handle: adminServerList,
-		}),
-		&(cmdmenu.Command[irc.Message]{
+		},
+		&cmdmenu.Command[irc.Message]{
 			Name:   "add",
 			Args:   2,
 			Usage:  "<name> <address>",
 			Handle: adminServerAdd,
-		}),
-		&(cmdmenu.Command[irc.Message]{
+		},
+		&cmdmenu.Command[irc.Message]{
 			Name:   "del",
 			Args:   1,
 			Usage:  "<name>",
 			Handle: adminServerDel,
-		}),
-		&(cmdmenu.Menu[irc.Message]{
+		},
+		&cmdmenu.Menu[irc.Message]{
 			Name: "set",
-			Commands: []cmdmenu.Runnable{
-				&(cmdmenu.Command[irc.Message]{
+			Commands: []cmdmenu.Runnable[irc.Message]{
+				&cmdmenu.Command[irc.Message]{
 					Name:   "addr",
 					Args:   2,
 					Usage:  "<name> <address>",
 					Handle: adminServerSetAddr,
-				}),
+				},
 			},
-		}),
+		},
 	},
 }
 
 func handleAdminServer(msg *irc.Message, args []string) {
-	adminServer.Run(args[1:], unsafe.Pointer(msg), func(usage string) {
+	adminServer.Run(args[1:], msg, func(usage string) {
 		if strings.HasPrefix(msg.Where, "#") {
 			usage = prefix + usage
 		}
