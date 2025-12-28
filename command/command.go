@@ -1,6 +1,8 @@
 package command
 
 import (
+	"fmt"
+	"log/slog"
 	"slices"
 	"strings"
 
@@ -57,12 +59,19 @@ func canSenderRunCommand(c *irc.Client, sender string, command *Command) bool {
 
 // args[0] should be prefix stripped
 func Run(c *irc.Client, sender, where string, args []string) {
+	defer func() {
+		r := recover()
+		if r == nil {
+			return
+		}
+		c.Send(where, fmt.Sprintf("command panicked: %v", r))
+		slog.Warn("command panicked", "err", r)
+	}()
+
 	if len(args) == 0 {
 		c.Send(where, getUnknownCommandMsg(where))
 		return
 	}
-
-	// TODO: handle recover
 
 	name := strings.ToLower(args[0])
 

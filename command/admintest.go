@@ -7,10 +7,6 @@ import (
 	"github.com/makinori/mikogo/irc"
 )
 
-func testPing(c *irc.Client, sender, where string) {
-	c.Send(where, "pong!")
-}
-
 func testMsgsize(c *irc.Client, sender, where string) {
 	c.Send(where,
 		"will send a few long messages and print byte length",
@@ -50,25 +46,31 @@ func testMsgsize(c *irc.Client, sender, where string) {
 	sendOfNBytes(530)
 }
 
-func testClientPanic(c *irc.Client, sender, where string) {
-	c.PanicOnNextPing = true
-	c.Send(where, "will client panic on next ping")
-	slog.Info("admin requested test panic")
-}
-
 func handleTest(c *irc.Client, sender, where string, args []string) {
 	if len(args) < 2 {
-		c.Send(where, "either: ping, msgsize, clientpanic")
+		c.Send(where, "usage: test <subcommand>\n"+
+			"  ping, msgsize, clientpanic, commandpanic",
+		)
 		return
 	}
 
 	switch args[1] {
 	case "ping":
-		testPing(c, sender, where)
+		c.Send(where, "pong!")
+
 	case "msgsize":
 		testMsgsize(c, sender, where)
+
 	case "clientpanic":
-		testClientPanic(c, sender, where)
+		c.PanicOnNextPing = true
+		c.Send(where, "will client panic on next ping")
+		slog.Info("admin requested test panic")
+
+	case "commandpanic":
+		panic("test panic")
+
+	default:
+		c.Send(where, "unknown subcommand")
 	}
 }
 

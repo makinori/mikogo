@@ -10,7 +10,10 @@ import (
 
 func handleAdminServer(c *irc.Client, sender, where string, args []string) {
 	if len(args) < 2 {
-		c.Send(where, "either: list, add, del, setaddr")
+		c.Send(where,
+			"usage: server <subcommand>\n"+
+				"  list, add, del, setaddr",
+		)
 		return
 	}
 
@@ -30,7 +33,7 @@ func handleAdminServer(c *irc.Client, sender, where string, args []string) {
 
 	case "add":
 		if len(args) < 4 {
-			c.Send(where, "usage: <name> <address>")
+			c.Send(where, "usage: server add <name> <address>")
 			return
 		}
 
@@ -45,7 +48,7 @@ func handleAdminServer(c *irc.Client, sender, where string, args []string) {
 
 	case "del":
 		if len(args) < 3 {
-			c.Send(where, "usage: <name>")
+			c.Send(where, "usage: server del <name>")
 			return
 		}
 
@@ -60,7 +63,7 @@ func handleAdminServer(c *irc.Client, sender, where string, args []string) {
 
 	case "setaddr":
 		if len(args) < 4 {
-			c.Send(where, "usage: <name> <address>")
+			c.Send(where, "usage: setaddr <name> <address>")
 			return
 		}
 
@@ -80,6 +83,9 @@ func handleAdminServer(c *irc.Client, sender, where string, args []string) {
 
 		c.Send(where, "server address updated! will reconnect")
 		// TODO: irc.Sync()
+
+	default:
+		c.Send(where, "unknown subcommand")
 	}
 }
 
