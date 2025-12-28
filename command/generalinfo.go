@@ -7,13 +7,13 @@ import (
 	"github.com/makinori/mikogo/irc"
 )
 
-func handleGeneralInfo(c *irc.Client, sender, where string, args []string) {
+func handleGeneralInfo(msg *irc.Message, args []string) {
 	out := "hi im mikogo (commit=" + env.GIT_COMMIT +
 		" go=" + env.GetGoVersion() + ")\n"
 	out += "made by: https://maki.cafe\n"
 	out += "named by: https://micae.la\n"
 	out += "https://github.com/makinori/mikogo\n"
-	c.Send(where, strings.TrimSpace(out))
+	msg.Client.Send(msg.Where, strings.TrimSpace(out))
 }
 
 var CommandGeneralInfo = Command{

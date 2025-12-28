@@ -8,12 +8,12 @@ import (
 	"github.com/makinori/mikogo/irc"
 )
 
-func handleGeneralHelp(c *irc.Client, sender, where string, args []string) {
+func handleGeneralHelp(msg *irc.Message, args []string) {
 	categories := orderedmap.NewOrderedMap[string, []*Command]()
 
 	for i := range commands {
 		command := commands[i]
-		if !canSenderRunCommand(c, sender, command) {
+		if !canSenderRunCommand(msg, command) {
 			continue
 		}
 		category, _ := categories.Get(command.Category)
@@ -22,8 +22,8 @@ func handleGeneralHelp(c *irc.Client, sender, where string, args []string) {
 	}
 
 	out := ""
-	if sender == env.OWNER {
-		out = "hi " + sender + " <3\n"
+	if msg.Sender == env.OWNER {
+		out = "hi " + msg.Sender + " <3\n"
 	}
 
 	for cat := categories.Front(); cat != nil; cat = cat.Next() {
@@ -34,7 +34,7 @@ func handleGeneralHelp(c *irc.Client, sender, where string, args []string) {
 		}
 	}
 
-	c.Send(where, strings.TrimSpace(out))
+	msg.Client.Send(msg.Where, strings.TrimSpace(out))
 }
 
 var CommandGeneralHelp = Command{

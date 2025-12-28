@@ -46,9 +46,11 @@ func testMsgsize(c *irc.Client, sender, where string) {
 	sendOfNBytes(530)
 }
 
-func handleTest(c *irc.Client, sender, where string, args []string) {
+func handleTest(msg *irc.Message, args []string) {
+	// use TODO: cmdmenu
+
 	if len(args) < 2 {
-		c.Send(where, "usage: test <subcommand>\n"+
+		msg.Client.Send(msg.Where, "usage: test <subcommand>\n"+
 			"  ping, msgsize, clientpanic, commandpanic",
 		)
 		return
@@ -56,21 +58,21 @@ func handleTest(c *irc.Client, sender, where string, args []string) {
 
 	switch args[1] {
 	case "ping":
-		c.Send(where, "pong!")
+		msg.Client.Send(msg.Where, "pong!")
 
 	case "msgsize":
-		testMsgsize(c, sender, where)
+		testMsgsize(msg.Client, msg.Sender, msg.Where)
 
 	case "clientpanic":
-		c.PanicOnNextPing = true
-		c.Send(where, "will client panic on next ping")
+		msg.Client.PanicOnNextPing = true
+		msg.Client.Send(msg.Where, "will client panic on next ping")
 		slog.Info("admin requested test panic")
 
 	case "commandpanic":
 		panic("test panic")
 
 	default:
-		c.Send(where, "unknown subcommand")
+		msg.Client.Send(msg.Where, "unknown subcommand")
 	}
 }
 

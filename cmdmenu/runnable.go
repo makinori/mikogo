@@ -1,33 +1,57 @@
 package cmdmenu
 
+import (
+	"unsafe"
+)
+
 type Runnable interface {
 	getName() string
-	// sets if r != nil, otherwise gets
-	setOrGetParent(r Runnable) Runnable
-	getPrintUsageHandle() func(msg string)
+	getPrintUsage() func(msg string)
+	getUserValue() unsafe.Pointer
+	setOrGetParent(set Runnable) Runnable
+	// TODO: place parent and user value here instead
 	Run(args []string)
 }
 
+func getUserValue[T any](r Runnable) *T {
+	value := r.getUserValue()
+	if value != nil {
+		return (*T)(value)
+	}
+
+	for value == nil {
+		r = r.setOrGetParent(nil)
+		if r == nil {
+			break
+		}
+
+		value = r.getUserValue()
+		if value != nil {
+			return (*T)(value)
+		}
+	}
+
+	return nil
+}
+
 func printUsage(r Runnable, usage string) {
-	handle := r.getPrintUsageHandle()
+	handle := r.getPrintUsage()
 	if handle != nil {
 		handle(usage)
 		return
 	}
 
 	for handle == nil {
-		parent := r.setOrGetParent(nil)
-		if parent == nil {
+		r = r.setOrGetParent(nil)
+		if r == nil {
 			break
 		}
 
-		handle = parent.getPrintUsageHandle()
+		handle = r.getPrintUsage()
 		if handle != nil {
 			handle(usage)
 			return
 		}
-
-		r = parent
 	}
 
 	panic("failed to get print handle")

@@ -2,51 +2,58 @@ package cmdmenu
 
 import (
 	"strings"
+	"unsafe"
 )
 
-type Menu struct {
+type Menu[T any] struct {
 	Name     string
 	Commands []Runnable
 	// can be nil, will take from parent
+	UserValue *T
+	// can be nil, will take from parent
 	PrintUsage func(msg string)
 
-	parent Runnable
+	currentParent Runnable
 }
 
-func (c *Menu) getName() string {
-	return c.Name
+func (m *Menu[T]) getName() string {
+	return m.Name
 }
 
-func (m *Menu) setOrGetParent(r Runnable) Runnable {
+func (m *Menu[T]) getPrintUsage() func(msg string) {
+	return m.PrintUsage
+}
+
+func (m *Menu[T]) getUserValue() unsafe.Pointer {
+	return unsafe.Pointer(m.UserValue)
+}
+
+func (m *Menu[T]) setOrGetParent(r Runnable) Runnable {
 	if r != nil {
-		m.parent = r
+		m.currentParent = r
 		return nil
 	}
-	return m.parent
+	return m.currentParent
 }
 
-func (c *Menu) getPrintUsageHandle() func(msg string) {
-	return c.PrintUsage
-}
-
-func (c *Menu) Run(args []string) {
+func (m *Menu[T]) Run(args []string) {
 	if len(args) > 0 {
 		name := strings.ToLower(args[0])
-		for i := range c.Commands {
-			if name == c.Commands[i].getName() {
-				c.Commands[i].setOrGetParent(c)
-				c.Commands[i].Run(args[1:])
+		for i := range m.Commands {
+			if name == m.Commands[i].getName() {
+				m.Commands[i].setOrGetParent(m)
+				m.Commands[i].Run(args[1:])
 				return
 			}
 		}
 	}
 
-	names := make([]string, len(c.Commands))
-	for i := range c.Commands {
-		names[i] = c.Commands[i].getName()
+	names := make([]string, len(m.Commands))
+	for i := range m.Commands {
+		names[i] = m.Commands[i].getName()
 	}
 
-	printUsage(c, getCallStack(c)+" <subcommand>\n  "+
+	printUsage(m, getCallStack(m)+" <subcommand>\n  "+
 		strings.Join(names, ", "),
 	)
 }

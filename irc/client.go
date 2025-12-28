@@ -31,7 +31,14 @@ var (
 	WHOIS_REPLY_REGEXP = regexp.MustCompile(`^:.+? 311 .+ (.+?) (.+?) (.+?) \* (.+?)\r\n$`)
 )
 
-var GlobalHandleMessage func(c *Client, sender, where, msg string)
+type Message struct {
+	Client  *Client
+	Sender  string
+	Where   string
+	Message string
+}
+
+var GlobalHandleMessage func(msg *Message)
 
 type Client struct {
 	Address string
@@ -93,7 +100,12 @@ func (c *Client) handleMessage(msg string) {
 			// if direct message, "where" ends up being our nick
 			where = sender
 		}
-		go GlobalHandleMessage(c, sender, where, matches[3])
+		go GlobalHandleMessage(&Message{
+			Client:  c,
+			Sender:  sender,
+			Where:   where,
+			Message: matches[3],
+		})
 		return
 	}
 

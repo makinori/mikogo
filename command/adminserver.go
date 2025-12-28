@@ -9,89 +9,98 @@ import (
 	"github.com/makinori/mikogo/irc"
 )
 
-func handleAdminServer(c *irc.Client, sender, where string, args []string) {
-	(&cmdmenu.Menu{
-		Name: "server",
+func adminServerList(msg *irc.Message, args []string) {
+	servers, err := db.Servers.GetAll()
+	if err != nil {
+		msg.Client.Send(msg.Where, "failed to get all: "+err.Error())
+		return
+	}
+
+	out := "[home]: " + env.HOME_SERVER + "\n"
+	for s := servers.Front(); s != nil; s = s.Next() {
+		out += s.Key + ": " + s.Value.Address + "\n"
+	}
+	msg.Client.Send(msg.Where, strings.TrimSpace(out))
+}
+
+func adminServerAdd(msg *irc.Message, args []string) {
+	err := db.Servers.Add(
+		args[0], db.Server{Address: args[1]},
+	)
+	if err != nil {
+		msg.Client.Send(msg.Where, "failed to add: "+err.Error())
+		return
+	}
+
+	msg.Client.Send(msg.Where, "server added! will connect")
+	// TODO: irc.Sync()
+}
+
+func adminServerDel(msg *irc.Message, args []string) {
+	err := db.Servers.Delete(args[0])
+	if err != nil {
+		msg.Client.Send(msg.Where, "failed to delete: "+err.Error())
+		return
+	}
+
+	msg.Client.Send(msg.Where, "server deleted! will disconnect")
+	// TODO: irc.Sync()
+}
+
+func adminServerSetAddr(c *irc.Message, args []string) {
+	server, err := db.Servers.Get(args[0])
+	if err != nil {
+		c.Client.Send(c.Where, "failed to get: "+err.Error())
+		return
+	}
+
+	server.Address = args[1]
+
+	err = db.Servers.Put(args[0], server)
+	if err != nil {
+		c.Client.Send(c.Where, "failed to update: "+err.Error())
+		return
+	}
+
+	c.Client.Send(c.Where, "server address updated! will reconnect")
+	// TODO: irc.Sync()
+}
+
+func handleAdminServer(msg *irc.Message, args []string) {
+	(&cmdmenu.Menu[irc.Message]{
+		Name:      "server",
+		UserValue: msg,
 		PrintUsage: func(usage string) {
-			if strings.HasPrefix(where, "#") {
-				usage = Prefix + usage
+			if strings.HasPrefix(msg.Where, "#") {
+				usage = prefix + usage
 			}
-			c.Send(where, "usage: "+usage)
+			msg.Client.Send(msg.Where, "usage: "+usage)
 		},
 		Commands: []cmdmenu.Runnable{
-			&(cmdmenu.Command{
-				Name: "list",
-				Handle: func(args []string) {
-					servers, err := db.Servers.GetAll()
-					if err != nil {
-						c.Send(where, "failed to get all: "+err.Error())
-						return
-					}
-
-					out := "[home]: " + env.HOME_SERVER + "\n"
-					for s := servers.Front(); s != nil; s = s.Next() {
-						out += s.Key + ": " + s.Value.Address + "\n"
-					}
-					c.Send(where, strings.TrimSpace(out))
-				},
+			&(cmdmenu.Command[irc.Message]{
+				Name:   "list",
+				Handle: adminServerList,
 			}),
-			&(cmdmenu.Command{
-				Name:  "add",
-				Args:  2,
-				Usage: "<name> <address>",
-				Handle: func(args []string) {
-					err := db.Servers.Add(
-						args[0], db.Server{Address: args[1]},
-					)
-					if err != nil {
-						c.Send(where, "failed to add: "+err.Error())
-						return
-					}
-
-					c.Send(where, "server added! will connect")
-					// TODO: irc.Sync()
-				},
+			&(cmdmenu.Command[irc.Message]{
+				Name:   "add",
+				Args:   2,
+				Usage:  "<name> <address>",
+				Handle: adminServerAdd,
 			}),
-			&(cmdmenu.Command{
-				Name:  "del",
-				Args:  1,
-				Usage: "<name>",
-				Handle: func(args []string) {
-					err := db.Servers.Delete(args[0])
-					if err != nil {
-						c.Send(where, "failed to delete: "+err.Error())
-						return
-					}
-
-					c.Send(where, "server deleted! will disconnect")
-					// TODO: irc.Sync()
-				},
+			&(cmdmenu.Command[irc.Message]{
+				Name:   "del",
+				Args:   1,
+				Usage:  "<name>",
+				Handle: adminServerDel,
 			}),
-			&(cmdmenu.Menu{
+			&(cmdmenu.Menu[irc.Message]{
 				Name: "set",
 				Commands: []cmdmenu.Runnable{
-					&(cmdmenu.Command{
-						Name:  "addr",
-						Args:  2,
-						Usage: "<name> <address>",
-						Handle: func(args []string) {
-							server, err := db.Servers.Get(args[0])
-							if err != nil {
-								c.Send(where, "failed to get: "+err.Error())
-								return
-							}
-
-							server.Address = args[1]
-
-							err = db.Servers.Put(args[0], server)
-							if err != nil {
-								c.Send(where, "failed to update: "+err.Error())
-								return
-							}
-
-							c.Send(where, "server address updated! will reconnect")
-							// TODO: irc.Sync()
-						},
+					&(cmdmenu.Command[irc.Message]{
+						Name:   "addr",
+						Args:   2,
+						Usage:  "<name> <address>",
+						Handle: adminServerSetAddr,
 					}),
 				},
 			}),
