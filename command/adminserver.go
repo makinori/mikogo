@@ -100,12 +100,7 @@ var adminServer = cmdmenu.Menu[irc.Message]{
 }
 
 func handleAdminServer(msg *irc.Message, args []string) {
-	adminServer.Run(args[1:], msg, func(usage string) {
-		if strings.HasPrefix(msg.Where, "#") {
-			usage = prefix + usage
-		}
-		msg.Client.Send(msg.Where, "usage: "+usage)
-	})
+	adminServer.Run(args[1:], msg, cmdmenuUsage(msg))
 }
 
 var CommandAdminServer = Command{
