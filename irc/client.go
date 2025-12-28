@@ -3,10 +3,12 @@ package irc
 import (
 	"bufio"
 	"crypto/tls"
+	"errors"
 	"fmt"
 	"io"
 	"log/slog"
 	"math/rand"
+	"net"
 	"regexp"
 	"strings"
 	"time"
@@ -20,6 +22,8 @@ const (
 	ConnStateConnecting ConnState = iota
 	ConnStateConnected
 	ConnStateDisconnected
+
+	RECONNECT_DURATION = time.Second * 10
 )
 
 var (
@@ -27,16 +31,19 @@ var (
 	WHOIS_REPLY_REGEXP = regexp.MustCompile(`^:.+? 311 .+ (.+?) (.+?) (.+?) \* (.+?)\r\n$`)
 )
 
+var GlobalHandleMessage func(c *Client, sender, where, msg string)
+
 type Client struct {
-	Address      string
-	botHandleMsg func(sender, where, msg string)
-	active       bool // for starting/stopping the client
+	Address string
+	active  bool // for starting/stopping the client
 
 	Conn  *tls.Conn
 	state ConnState
 
 	user string
 	host string
+
+	PanicOnNextPing bool
 }
 
 func (c *Client) MakePrivmsg(to string, msg string) string {
@@ -86,13 +93,13 @@ func (c *Client) handleMessage(msg string) {
 			// if direct message, "where" ends up being our nick
 			where = sender
 		}
-		go c.botHandleMsg(sender, where, matches[3])
+		go GlobalHandleMessage(c, sender, where, matches[3])
 		return
 	}
 
 	if c.state == ConnStateConnecting &&
 		strings.Contains(msg, " 001 "+env.NICK+" ") {
-		slog.Info("connected", "server", c.Address)
+		slog.Info("connected!", "server", c.Address)
 		c.state = ConnStateConnected
 		return
 	}
@@ -157,7 +164,7 @@ func (c *Client) connect() {
 	reader := bufio.NewReader(c.Conn)
 	for {
 		msg, err := reader.ReadString('\n')
-		if err == io.EOF {
+		if err == io.EOF || errors.Is(err, net.ErrClosed) {
 			c.state = ConnStateDisconnected
 			c.Conn = nil
 			slog.Warn("disconnected. retrying...", "server", c.Address)
@@ -171,19 +178,42 @@ func (c *Client) connect() {
 	}
 }
 
+func (c *Client) Close() {
+	c.active = false
+	if c.Conn != nil {
+		c.Conn.Close()
+		c.Conn = nil
+	}
+}
+
+func (c *Client) recoverAndRestart() {
+	r := recover()
+	if r == nil {
+		return
+	}
+
+	c.Close()
+
+	slog.Error("client panic", "err", r)
+	time.Sleep(RECONNECT_DURATION)
+	Init(c.Address)
+}
+
 func (c *Client) connLoop() {
+	defer c.recoverAndRestart()
 	for {
 		if !c.active {
 			return
 		}
 		c.connect()
-		time.Sleep(time.Second * 10)
+		time.Sleep(RECONNECT_DURATION)
 	}
 }
 
 func (c *Client) pingLoop() {
 	// this loop will expire if closed.
 	// we need to reinit anyway if we wanna reconnect.
+	defer c.recoverAndRestart()
 	for {
 		if !c.active {
 			return
@@ -192,29 +222,24 @@ func (c *Client) pingLoop() {
 			time.Sleep(time.Second * 5)
 			continue
 		}
+		if c.PanicOnNextPing {
+			panic("test panic")
+		}
 		fmt.Fprintf(c.Conn, "PING hi\r\n")
 		time.Sleep(time.Second * 60)
 	}
 }
 
-func (c *Client) Close() {
-	c.active = false
-	c.Conn.Close()
-}
+func Init(address string) *Client {
+	slog.Info("connecting...", "server", address)
 
-func Init(
-	address string, handleMsg func(sender, where, msg string),
-) (*Client, error) {
 	c := Client{
-		Address:      address,
-		botHandleMsg: handleMsg,
-		active:       true,
+		Address: address,
+		active:  true,
 	}
-
-	// TODO: use recover()
 
 	go c.connLoop()
 	go c.pingLoop()
 
-	return &c, nil
+	return &c
 }

@@ -2,6 +2,7 @@ package command
 
 import (
 	"fmt"
+	"log/slog"
 
 	"github.com/makinori/mikogo/irc"
 )
@@ -49,9 +50,15 @@ func testMsgsize(c *irc.Client, sender, where string) {
 	sendOfNBytes(530)
 }
 
+func testClientPanic(c *irc.Client, sender, where string) {
+	c.PanicOnNextPing = true
+	c.Send(where, "will client panic on next ping")
+	slog.Info("admin requested test panic")
+}
+
 func handleTest(c *irc.Client, sender, where string, args []string) {
 	if len(args) < 2 {
-		c.Send(where, "either: ping, msgsize")
+		c.Send(where, "either: ping, msgsize, clientpanic")
 		return
 	}
 
@@ -60,6 +67,8 @@ func handleTest(c *irc.Client, sender, where string, args []string) {
 		testPing(c, sender, where)
 	case "msgsize":
 		testMsgsize(c, sender, where)
+	case "clientpanic":
+		testClientPanic(c, sender, where)
 	}
 }
 
