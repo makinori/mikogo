@@ -6,8 +6,8 @@ import (
 )
 
 func pingAllClients() {
-	clientsMutex.Lock()
-	defer clientsMutex.Unlock()
+	clientsMutex.RLock()
+	defer clientsMutex.RUnlock()
 
 	for _, client := range clients {
 		client.ping()

@@ -1,12 +1,14 @@
 package command
 
 import (
+	"fmt"
 	"slices"
 	"strings"
 
 	"github.com/makinori/mikogo/cmdmenu"
 	"github.com/makinori/mikogo/db"
 	"github.com/makinori/mikogo/irc"
+	"github.com/makinori/mikogo/ircf"
 )
 
 func adminServerList(msg *irc.Message, args []string) {
@@ -18,12 +20,14 @@ func adminServerList(msg *irc.Message, args []string) {
 
 	out := ""
 	for name, server := range servers.AllFromBack() {
-		out += name + " (" + server.Address + "): "
-		if len(server.Channels) == 0 {
-			out += "none\n"
-		} else {
-			out += strings.Join(server.Channels, ", ") + "\n"
-		}
+		channels := fmt.Sprintf("%v", server.Channels)
+		out += fmt.Sprintf(
+			"%s addr=%s state=%s channels=%v\n",
+			ircf.BoldWhite.Format(name),
+			ircf.BoldWhite.Format(server.Address),
+			irc.GetStateWithFormatting(name),
+			ircf.BoldWhite.Format(channels),
+		)
 	}
 
 	msg.Client.Send(msg.Where, strings.TrimSpace(out))

@@ -6,22 +6,33 @@ import (
 	"sync"
 
 	"github.com/makinori/mikogo/db"
+	"github.com/makinori/mikogo/ircf"
 )
 
 var (
 	clients      = map[string]*Client{}
-	clientsMutex = sync.Mutex{}
+	clientsMutex = sync.RWMutex{}
 )
 
-func IsConnectedSafe(address string) bool {
-	clientsMutex.Lock()
-	defer clientsMutex.Unlock()
-	for _, client := range clients {
-		if client.Address == address {
-			return true
-		}
+func GetStateWithFormatting(name string) string {
+	clientsMutex.RLock()
+	defer clientsMutex.RUnlock()
+
+	client, ok := clients[name]
+	if !ok {
+		return ircf.Bold().Color(98, 40).Format("not found")
 	}
-	return false
+
+	switch client.state {
+	case ConnStateConnecting:
+		return ircf.Bold().Color(98, 41).Format("connecting")
+	case ConnStateConnected:
+		return ircf.Bold().Color(98, 43).Format("connected")
+	case ConnStateDisconnected:
+		return ircf.Bold().Color(98, 40).Format("disconnected")
+	}
+
+	return "no idea"
 }
 
 func Sync() error {
@@ -30,36 +41,42 @@ func Sync() error {
 		return err
 	}
 
-	clientsMutex.Lock()
-	defer clientsMutex.Unlock()
+	// write lock
+	(func() {
+		clientsMutex.Lock()
+		defer clientsMutex.Unlock()
 
-	// ensure clients that need to be online first
-	// also collect server names for later
+		// ensure clients that need to be online first
+		// also collect server names for later
 
-	allServerNames := []string{}
+		allServerNames := []string{}
 
-	for name, server := range servers.AllFromBack() {
-		allServerNames = append(allServerNames, name)
+		for name, server := range servers.AllFromBack() {
+			allServerNames = append(allServerNames, name)
 
-		if clients[name] == nil {
-			clients[name] = newClient(server.Address)
+			if clients[name] == nil {
+				clients[name] = newClient(server.Address)
+			}
+
+			if !clients[name].active {
+				clients[name].init()
+			}
+
+			// TODO: also sync channels
 		}
 
-		if !clients[name].active {
-			clients[name].init()
+		// then remove clients that shouldnt be online
+
+		for name := range clients {
+			if !slices.Contains(allServerNames, name) {
+				clients[name].delete()
+				clients[name] = nil
+			}
 		}
+	})()
 
-		// TODO: also sync channels
-	}
-
-	// then remove clients that shouldnt be online
-
-	for name := range clients {
-		if !slices.Contains(allServerNames, name) {
-			clients[name].delete()
-			clients[name] = nil
-		}
-	}
+	clientsMutex.RLock()
+	defer clientsMutex.RUnlock()
 
 	// then reconnect those that got a new address last
 	// as we dont want to accidentally connect twice anywhere
