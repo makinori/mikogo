@@ -227,6 +227,7 @@ func (c *Client) recoverAndRestart() {
 		return
 	}
 	slog.Error("client panic", "server", c.Address, "err", r)
+	c.PanicOnNextPing = false
 	c.reconnect()
 }
 
