@@ -16,6 +16,8 @@ import (
 	"github.com/makinori/mikogo/env"
 )
 
+// TODO: better logging system so we dont keep writing "server", c.Address
+
 type ConnState = uint8
 
 const (
@@ -224,7 +226,7 @@ func (c *Client) recoverAndRestart() {
 	if r == nil {
 		return
 	}
-	slog.Error("client panic", "err", r)
+	slog.Error("client panic", "server", c.Address, "err", r)
 	c.reconnect()
 }
 

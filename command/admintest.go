@@ -2,7 +2,6 @@ package command
 
 import (
 	"fmt"
-	"log/slog"
 
 	"github.com/makinori/mikogo/cmdmenu"
 	"github.com/makinori/mikogo/irc"
@@ -67,7 +66,6 @@ var adminTest = cmdmenu.Menu[irc.Message]{
 			Handle: func(msg *irc.Message, args []string) {
 				msg.Client.PanicOnNextPing = true
 				msg.Client.Send(msg.Where, "will client panic on next ping")
-				slog.Info("admin requested test panic")
 			},
 		},
 		&cmdmenu.Command[irc.Message]{
