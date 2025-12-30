@@ -228,7 +228,7 @@ func (c *Client) recoverAndRestart() {
 	c.reconnect()
 }
 
-func (c *Client) connLoop() {
+func (c *Client) loop() {
 	defer c.recoverAndRestart()
 	for {
 		if !c.active {
@@ -242,24 +242,17 @@ func (c *Client) connLoop() {
 	}
 }
 
-func (c *Client) pingLoop() {
-	// this loop will expire if closed.
-	// we need to reinit anyway if we wanna reconnect.
-	defer c.recoverAndRestart()
-	for {
-		if !c.active {
-			return
-		}
-		if c.Conn == nil || c.state != ConnStateConnected {
-			time.Sleep(time.Second * 5)
-			continue
-		}
-		if c.PanicOnNextPing {
-			panic("test panic")
-		}
-		fmt.Fprintf(c.Conn, "PING hi\r\n")
-		time.Sleep(time.Second * 60)
+func (c *Client) ping() {
+	if !c.active || c.state != ConnStateConnected {
+		return
 	}
+
+	defer c.recoverAndRestart()
+	if c.PanicOnNextPing {
+		panic("test panic")
+	}
+
+	fmt.Fprintf(c.Conn, "PING hi\r\n")
 }
 
 func (c *Client) init() bool {
@@ -275,8 +268,7 @@ func (c *Client) init() bool {
 
 	slog.Info("connecting...", "server", c.Address)
 
-	go c.connLoop()
-	go c.pingLoop()
+	go c.loop()
 
 	return true
 }
