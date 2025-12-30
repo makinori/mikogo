@@ -154,7 +154,7 @@ func (c *Client) connect() {
 	if err != nil {
 		slog.Warn(
 			"failed to connect. retrying...",
-			"err", err,
+			"server", c.Address, "err", err,
 		)
 		return
 	}
@@ -179,10 +179,17 @@ func (c *Client) connect() {
 		if err == io.EOF || errors.Is(err, net.ErrClosed) {
 			c.state = ConnStateDisconnected
 			c.Conn = nil
-			slog.Warn("disconnected. retrying...", "server", c.Address)
+			if c.active {
+				slog.Warn("disconnected. retrying...", "server", c.Address)
+			} else {
+				slog.Info("disconnected by request", "server", c.Address)
+			}
 			break
 		} else if err != nil {
-			slog.Error("failed to read message", "err", err)
+			slog.Error(
+				"failed to read message",
+				"server", c.Address, "err", err,
+			)
 			// can just move on i suppose?
 			continue
 		}
@@ -190,8 +197,22 @@ func (c *Client) connect() {
 	}
 }
 
-func (c *Client) Close() {
+// will set active to false
+func (c *Client) delete() {
 	c.active = false
+	if c.Conn != nil {
+		c.Conn.Close()
+		c.Conn = nil
+	}
+}
+
+func (c *Client) reconnect() {
+	if !c.active {
+		c.init()
+		return
+	}
+
+	// will cause connection loop to reconnect
 	if c.Conn != nil {
 		c.Conn.Close()
 		c.Conn = nil
@@ -203,12 +224,8 @@ func (c *Client) recoverAndRestart() {
 	if r == nil {
 		return
 	}
-
-	c.Close()
-
 	slog.Error("client panic", "err", r)
-	time.Sleep(RECONNECT_DURATION)
-	Init(c.Address)
+	c.reconnect()
 }
 
 func (c *Client) connLoop() {
@@ -217,7 +234,10 @@ func (c *Client) connLoop() {
 		if !c.active {
 			return
 		}
-		c.connect()
+		c.connect() // will return if client disconnects
+		if !c.active {
+			return
+		}
 		time.Sleep(RECONNECT_DURATION)
 	}
 }
@@ -242,16 +262,27 @@ func (c *Client) pingLoop() {
 	}
 }
 
-func Init(address string) *Client {
-	slog.Info("connecting...", "server", address)
-
-	c := Client{
-		Address: address,
-		active:  true,
+func (c *Client) init() bool {
+	if c.active {
+		slog.Warn(
+			"can't init client that's already active",
+			"server", c.Address,
+		)
+		return false
 	}
+
+	c.active = true
+
+	slog.Info("connecting...", "server", c.Address)
 
 	go c.connLoop()
 	go c.pingLoop()
 
-	return &c
+	return true
+}
+
+func newClient(address string) *Client {
+	return &Client{
+		Address: address,
+	}
 }

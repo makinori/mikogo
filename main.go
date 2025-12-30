@@ -3,7 +3,6 @@ package main
 import (
 	"github.com/makinori/mikogo/command"
 	"github.com/makinori/mikogo/db"
-	"github.com/makinori/mikogo/env"
 	"github.com/makinori/mikogo/irc"
 )
 
@@ -20,7 +19,8 @@ func main() {
 	}
 
 	irc.GlobalHandleMessage = handleMessage
-	irc.Init(env.HOME_SERVER)
+
+	irc.Sync()
 
 	keepAlive := make(chan struct{})
 	<-keepAlive

@@ -1,11 +1,11 @@
 package command
 
 import (
+	"slices"
 	"strings"
 
 	"github.com/makinori/mikogo/cmdmenu"
 	"github.com/makinori/mikogo/db"
-	"github.com/makinori/mikogo/env"
 	"github.com/makinori/mikogo/irc"
 )
 
@@ -16,15 +16,36 @@ func adminServerList(msg *irc.Message, args []string) {
 		return
 	}
 
-	out := "[home]: " + env.HOME_SERVER + "\n"
-	for s := servers.Front(); s != nil; s = s.Next() {
-		out += s.Key + ": " + s.Value.Address + "\n"
+	out := ""
+	for name, server := range servers.AllFromBack() {
+		out += name + " (" + server.Address + "): "
+		if len(server.Channels) == 0 {
+			out += "none\n"
+		} else {
+			out += strings.Join(server.Channels, ", ") + "\n"
+		}
 	}
+
 	msg.Client.Send(msg.Where, strings.TrimSpace(out))
 }
 
 func adminServerAdd(msg *irc.Message, args []string) {
-	err := db.Servers.Add(
+	if args[0] == "home" {
+		msg.Client.Send(msg.Where, "cannot add home server")
+		return
+	}
+
+	serverName, _, err, ok := db.GetServerByAddress(args[1])
+	if err != nil {
+		msg.Client.Send(msg.Where, "failed to get server by address: "+err.Error())
+		return
+	}
+	if ok {
+		msg.Client.Send(msg.Where, "server with same address already exists: "+serverName)
+		return
+	}
+
+	err = db.Servers.Add(
 		args[0], db.Server{Address: args[1]},
 	)
 	if err != nil {
@@ -33,24 +54,46 @@ func adminServerAdd(msg *irc.Message, args []string) {
 	}
 
 	msg.Client.Send(msg.Where, "server added! will connect")
-	// TODO: irc.Sync()
+
+	irc.Sync()
 }
 
-func adminServerDel(msg *irc.Message, args []string) {
-	err := db.Servers.Delete(args[0])
-	if err != nil {
-		msg.Client.Send(msg.Where, "failed to delete: "+err.Error())
+func adminServerRemove(msg *irc.Message, args []string) {
+	if args[0] == "home" {
+		msg.Client.Send(msg.Where, "cannot remove home server")
 		return
 	}
 
-	msg.Client.Send(msg.Where, "server deleted! will disconnect")
-	// TODO: irc.Sync()
+	err := db.Servers.Delete(args[0])
+	if err != nil {
+		msg.Client.Send(msg.Where, "failed to remove: "+err.Error())
+		return
+	}
+
+	msg.Client.Send(msg.Where, "server removed! will disconnect")
+
+	irc.Sync()
 }
 
-func adminServerSetAddr(c *irc.Message, args []string) {
-	server, err := db.Servers.Get(args[0])
+func adminServerSetAddr(msg *irc.Message, args []string) {
+	if args[0] == "home" {
+		msg.Client.Send(msg.Where, "cannot update home server address")
+		return
+	}
+
+	serverName, _, err, ok := db.GetServerByAddress(args[1])
 	if err != nil {
-		c.Client.Send(c.Where, "failed to get: "+err.Error())
+		msg.Client.Send(msg.Where, "failed to get server by address: "+err.Error())
+		return
+	}
+	if ok {
+		msg.Client.Send(msg.Where, "server with same address already exists: "+serverName)
+		return
+	}
+
+	server, err, _ := db.Servers.Get(args[0])
+	if err != nil {
+		msg.Client.Send(msg.Where, "failed to get: "+err.Error())
 		return
 	}
 
@@ -58,12 +101,74 @@ func adminServerSetAddr(c *irc.Message, args []string) {
 
 	err = db.Servers.Put(args[0], server)
 	if err != nil {
-		c.Client.Send(c.Where, "failed to update: "+err.Error())
+		msg.Client.Send(msg.Where, "failed to update: "+err.Error())
 		return
 	}
 
-	c.Client.Send(c.Where, "server address updated! will reconnect")
-	// TODO: irc.Sync()
+	msg.Client.Send(msg.Where, "server address updated! will reconnect")
+
+	irc.Sync()
+}
+
+func adminServerChannelsAdd(msg *irc.Message, args []string) {
+	channel := args[1]
+	if !strings.HasPrefix(channel, "#") {
+		channel = "#" + channel
+	}
+
+	server, err, _ := db.Servers.Get(args[0])
+	if err != nil {
+		msg.Client.Send(msg.Where, "failed to get: "+err.Error())
+		return
+	}
+
+	if slices.Contains(server.Channels, channel) {
+		msg.Client.Send(msg.Where, "already in channel")
+		return
+	}
+
+	server.Channels = append(server.Channels, channel)
+
+	err = db.Servers.Put(args[0], server)
+	if err != nil {
+		msg.Client.Send(msg.Where, "failed to put: "+err.Error())
+		return
+	}
+
+	msg.Client.Send(msg.Where, "added channel! will join")
+
+	irc.Sync()
+}
+
+func adminServerChannelsRemove(msg *irc.Message, args []string) {
+	channel := args[1]
+	if !strings.HasPrefix(channel, "#") {
+		channel = "#" + channel
+	}
+
+	server, err, _ := db.Servers.Get(args[0])
+	if err != nil {
+		msg.Client.Send(msg.Where, "failed to get: "+err.Error())
+		return
+	}
+
+	i := slices.Index(server.Channels, channel)
+	if i == -1 {
+		msg.Client.Send(msg.Where, "not in channel")
+		return
+	}
+
+	server.Channels = slices.Delete(server.Channels, i, i+1)
+
+	err = db.Servers.Put(args[0], server)
+	if err != nil {
+		msg.Client.Send(msg.Where, "failed to put: "+err.Error())
+		return
+	}
+
+	msg.Client.Send(msg.Where, "removed channel! will leave")
+
+	irc.Sync()
 }
 
 var adminServer = cmdmenu.Menu[irc.Message]{
@@ -80,10 +185,10 @@ var adminServer = cmdmenu.Menu[irc.Message]{
 			Handle: adminServerAdd,
 		},
 		&cmdmenu.Command[irc.Message]{
-			Name:   "del",
+			Name:   "remove",
 			Args:   1,
 			Usage:  "<name>",
-			Handle: adminServerDel,
+			Handle: adminServerRemove,
 		},
 		&cmdmenu.Menu[irc.Message]{
 			Name: "set",
@@ -93,6 +198,23 @@ var adminServer = cmdmenu.Menu[irc.Message]{
 					Args:   2,
 					Usage:  "<name> <address>",
 					Handle: adminServerSetAddr,
+				},
+			},
+		},
+		&cmdmenu.Menu[irc.Message]{
+			Name: "channels",
+			Commands: []cmdmenu.Runnable[irc.Message]{
+				&cmdmenu.Command[irc.Message]{
+					Name:   "add",
+					Args:   2,
+					Usage:  "<server name> <channel name>",
+					Handle: adminServerChannelsAdd,
+				},
+				&cmdmenu.Command[irc.Message]{
+					Name:   "remove",
+					Args:   2,
+					Usage:  "<server name> <channel name>",
+					Handle: adminServerChannelsRemove,
 				},
 			},
 		},

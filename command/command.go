@@ -101,8 +101,9 @@ func Run(msg *irc.Message) {
 		commands[foundCommand].Handle(msg, args)
 	} else {
 		msg.Client.Send(msg.Where, "sorry you can't run that command :(")
-		msg.Client.Send(env.OWNER,
-			msg.Sender+" tried to run "+commands[foundCommand].Name,
-		)
+		irc.ReportIncident(fmt.Sprintf(
+			`"%s" tried to run "%s" on "%s"`,
+			msg.Sender, msg.Message, msg.Client.Address,
+		))
 	}
 }

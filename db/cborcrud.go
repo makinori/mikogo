@@ -38,7 +38,7 @@ func (c *cborCrud[T]) GetAll() (*orderedmap.OrderedMap[string, T], error) {
 	return all, nil
 }
 
-func (c *cborCrud[T]) Get(key string) (value T, err error) {
+func (c *cborCrud[T]) Get(key string) (value T, err error, exists bool) {
 	err = db.View(func(tx *bbolt.Tx) error {
 		bucket := tx.Bucket([]byte(c.bucket))
 		if bucket == nil {
@@ -47,9 +47,11 @@ func (c *cborCrud[T]) Get(key string) (value T, err error) {
 
 		data := bucket.Get([]byte(key))
 		if len(data) == 0 {
-			return errors.New("not found")
+			exists = false
+			return nil
 		}
 
+		exists = true
 		return cbor.Unmarshal(data, &value)
 	})
 	return
