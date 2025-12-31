@@ -12,7 +12,7 @@ import (
 )
 
 const (
-	prefix = "m/"
+	prefix = "m!"
 )
 
 type Command struct {
