@@ -38,6 +38,8 @@ func init() {
 		&CommandGeneralHelp,
 		&CommandGeneralInfo,
 
+		&CommandFunImage,
+
 		&CommandAdminServer,
 		&CommandAdminChannel,
 		&CommandAdminTest,
