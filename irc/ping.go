@@ -10,7 +10,9 @@ func pingAllClients() {
 	defer clientsMutex.RUnlock()
 
 	for _, client := range clients {
-		client.ping()
+		if client != nil {
+			client.ping()
+		}
 	}
 }
 
