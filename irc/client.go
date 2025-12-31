@@ -10,10 +10,13 @@ import (
 	"math/rand"
 	"net"
 	"regexp"
+	"slices"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/makinori/mikogo/env"
+	"github.com/makinori/mikogo/ircf"
 )
 
 // TODO: better logging system so we dont keep writing "server", c.Address
@@ -29,8 +32,9 @@ const (
 )
 
 var (
-	PRIVMSG_REGEXP     = regexp.MustCompile(`^:(.+?)!.+? PRIVMSG (.+?) :(.+?)\r\n$`)
-	WHOIS_REPLY_REGEXP = regexp.MustCompile(`^:.+? 311 .+ (.+?) (.+?) (.+?) \* (.+?)\r\n$`)
+	RE_PRIVMSG     = regexp.MustCompile(`^:(.+?)!.+? PRIVMSG (.+?) :(.+?)\r\n$`)
+	RE_KICK        = regexp.MustCompile(`^:(.+?)!.+? KICK (#.+?) .+? :?(.+?)\r\n$`)
+	RE_WHOIS_REPLY = regexp.MustCompile(`^:.+? 311 .+ (.+?) (.+?) (.+?) \* (.+?)\r\n$`)
 )
 
 type Message struct {
@@ -53,6 +57,77 @@ type Client struct {
 	host string
 
 	PanicOnNextPing bool
+
+	channelsCurrent []string
+	channelsTarget  []string
+	channelsMutex   *sync.RWMutex
+}
+
+func (c *Client) slog() *slog.Logger {
+	return slog.Default().With("server", c.Address)
+}
+
+func (c *Client) FormattedState() string {
+	switch c.state {
+	case ConnStateConnecting:
+		return ircf.Bold().Color(98, 41).Format("connecting")
+	case ConnStateConnected:
+		return ircf.Bold().Color(98, 43).Format("connected")
+	case ConnStateDisconnected:
+		return ircf.Bold().Color(98, 40).Format("disconnected")
+	}
+	return ircf.Bold().Color(98, 40).Format(
+		fmt.Sprintf("unknown: %v", c.state),
+	)
+}
+
+func (c *Client) CurrentChannels() []string {
+	c.channelsMutex.RLock()
+	defer c.channelsMutex.RUnlock()
+	return slices.Concat(c.channelsCurrent) // make copy
+}
+
+func (c *Client) setTargetChannels(target []string) {
+	c.channelsMutex.Lock()
+	defer c.channelsMutex.Unlock()
+	c.channelsTarget = slices.Concat(target) // make copy
+}
+
+func (c *Client) SyncChannels() {
+	if !c.active || c.state != ConnStateConnected {
+		c.slog().Warn("can't sync channels if inactive or disconnected")
+		return
+	}
+
+	c.channelsMutex.Lock()
+	defer c.channelsMutex.Unlock()
+
+	for _, target := range c.channelsTarget {
+		if slices.Contains(c.channelsCurrent, target) {
+			continue
+		}
+
+		if !strings.HasPrefix(target, "#") {
+			c.slog().Warn("can't join invalid channel", "name", target)
+			continue
+		}
+
+		fmt.Fprintf(c.Conn, "JOIN %s\r\n", target)
+		// TODO: implementation doesnt handle JOIN fails
+		c.channelsCurrent = append(c.channelsCurrent, target)
+	}
+
+	i := 0
+	for _, current := range c.channelsCurrent {
+		if slices.Contains(c.channelsTarget, current) {
+			c.channelsCurrent[i] = current
+			i++
+			continue
+		}
+
+		fmt.Fprintf(c.Conn, "PART %s\r\n", current)
+	}
+	c.channelsCurrent = c.channelsCurrent[:i]
 }
 
 func (c *Client) MakePrivmsg(to string, msg string) string {
@@ -60,7 +135,7 @@ func (c *Client) MakePrivmsg(to string, msg string) string {
 		env.NICK, c.user, c.host, to, msg,
 	)
 	if len(out) > 512 {
-		slog.Warn("sent message too large", "bytes", len(out))
+		c.slog().Warn("sent message too large", "bytes", len(out))
 	}
 	return out
 }
@@ -87,6 +162,29 @@ func (c *Client) Send(to, msg string) {
 	c.writeBatch(to, lines)
 }
 
+func (c *Client) handleKick(sender string, where string, reason string) {
+	c.channelsMutex.Lock()
+	defer c.channelsMutex.Unlock()
+
+	c.slog().Info("kicked", "sender", sender, "where", where, "reason", reason)
+
+	ReportIncident(fmt.Sprintf(
+		"kicked from %s by %s on %s for %s",
+		ircf.BoldWhite.Format(where),
+		ircf.BoldWhite.Format(sender),
+		ircf.BoldWhite.Format(c.Address),
+		ircf.BoldWhite.Format(reason),
+	))
+
+	i := slices.Index(c.channelsCurrent, where)
+	if i == -1 {
+		c.slog().Warn("was never in channel?", "where", where)
+		return
+	}
+
+	c.channelsCurrent = slices.Delete(c.channelsCurrent, i, i+1)
+}
+
 func (c *Client) handleMessage(msg string) {
 	// debugMsg := msg
 	// debugMsg = strings.ReplaceAll(debugMsg, "\r", "\\r")
@@ -94,7 +192,7 @@ func (c *Client) handleMessage(msg string) {
 	// fmt.Println(debugMsg)
 
 	// handle privmsg first cause we dont want anyone to attack the below
-	matches := PRIVMSG_REGEXP.FindStringSubmatch(msg)
+	matches := RE_PRIVMSG.FindStringSubmatch(msg)
 	if len(matches) > 0 {
 		sender := matches[1]
 		where := matches[2]
@@ -113,8 +211,15 @@ func (c *Client) handleMessage(msg string) {
 
 	if c.state == ConnStateConnecting &&
 		strings.Contains(msg, " 001 "+env.NICK+" ") {
-		slog.Info("connected!", "server", c.Address)
+		c.slog().Info("connected!")
 		c.state = ConnStateConnected
+		c.SyncChannels()
+		return
+	}
+
+	matches = RE_KICK.FindStringSubmatch(msg)
+	if len(matches) > 0 {
+		c.handleKick(matches[1], matches[2], matches[3])
 		return
 	}
 
@@ -124,7 +229,7 @@ func (c *Client) handleMessage(msg string) {
 	if c.user == "" && c.host == "" && strings.Contains(
 		msg, " 311 "+env.NICK+" "+env.NICK,
 	) {
-		matches := WHOIS_REPLY_REGEXP.FindStringSubmatch(msg)
+		matches := RE_WHOIS_REPLY.FindStringSubmatch(msg)
 		if len(matches) == 0 {
 			return
 		}
@@ -135,7 +240,7 @@ func (c *Client) handleMessage(msg string) {
 
 		c.user = matches[2]
 		c.host = matches[3]
-		slog.Info("got", "mask", c.user+"@"+c.host, "server", c.Address)
+		c.slog().Info("got", "mask", c.user+"@"+c.host)
 
 		return
 	}
@@ -154,10 +259,7 @@ func (c *Client) connect() {
 		InsecureSkipVerify: true,
 	})
 	if err != nil {
-		slog.Warn(
-			"failed to connect. retrying...",
-			"server", c.Address, "err", err,
-		)
+		c.slog().Warn("failed to connect. retrying...", "err", err)
 		return
 	}
 
@@ -182,16 +284,13 @@ func (c *Client) connect() {
 			c.state = ConnStateDisconnected
 			c.Conn = nil
 			if c.active {
-				slog.Warn("disconnected. retrying...", "server", c.Address)
+				c.slog().Warn("disconnected. retrying...")
 			} else {
-				slog.Info("disconnected by request", "server", c.Address)
+				c.slog().Info("disconnected by request")
 			}
 			break
 		} else if err != nil {
-			slog.Error(
-				"failed to read message",
-				"server", c.Address, "err", err,
-			)
+			c.slog().Error("failed to read message", "err", err)
 			// can just move on i suppose?
 			continue
 		}
@@ -226,7 +325,7 @@ func (c *Client) recoverAndRestart() {
 	if r == nil {
 		return
 	}
-	slog.Error("client panic", "server", c.Address, "err", r)
+	c.slog().Error("client panic", "err", r)
 	c.PanicOnNextPing = false
 	c.reconnect()
 }
@@ -260,16 +359,13 @@ func (c *Client) ping() {
 
 func (c *Client) init() bool {
 	if c.active {
-		slog.Warn(
-			"can't init client that's already active",
-			"server", c.Address,
-		)
+		c.slog().Warn("can't init client that's already active")
 		return false
 	}
 
 	c.active = true
 
-	slog.Info("connecting...", "server", c.Address)
+	c.slog().Info("connecting...")
 
 	go c.loop()
 
@@ -278,6 +374,7 @@ func (c *Client) init() bool {
 
 func newClient(address string) *Client {
 	return &Client{
-		Address: address,
+		Address:       address,
+		channelsMutex: &sync.RWMutex{},
 	}
 }

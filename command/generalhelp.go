@@ -26,7 +26,7 @@ func handleGeneralHelp(msg *irc.Message, args []string) {
 		out = "hi " + msg.Sender + " <3\n"
 	}
 
-	for name, commands := range categories.AllFromBack() {
+	for name, commands := range categories.AllFromFront() {
 		out += name + ":\n"
 		for i := range commands {
 			command := commands[i]

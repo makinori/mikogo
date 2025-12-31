@@ -20,13 +20,24 @@ func adminServerList(msg *irc.Message, args []string) {
 
 	out := ""
 	for name, server := range servers.AllFromBack() {
-		channels := fmt.Sprintf("%v", server.Channels)
+		client := irc.GetClient(name)
+		currentChannels := client.CurrentChannels()
+
+		formattedChannels := make([]string, len(server.Channels))
+		for i, channel := range server.Channels {
+			if slices.Contains(currentChannels, channel) {
+				formattedChannels[i] = ircf.Color(98, 43).Format(channel)
+			} else {
+				formattedChannels[i] = ircf.Color(98, 40).Format(channel)
+			}
+		}
+
 		out += fmt.Sprintf(
-			"%s addr=%s state=%s channels=%v\n",
+			"%s addr=%s state=%s\n  %s\n",
 			ircf.BoldWhite.Format(name),
 			ircf.BoldWhite.Format(server.Address),
-			irc.GetStateWithFormatting(name),
-			ircf.BoldWhite.Format(channels),
+			client.FormattedState(),
+			ircf.Bold().Format(strings.Join(formattedChannels, ", ")),
 		)
 	}
 
@@ -114,67 +125,6 @@ func adminServerSetAddr(msg *irc.Message, args []string) {
 	irc.Sync()
 }
 
-func adminServerChannelsAdd(msg *irc.Message, args []string) {
-	channel := args[1]
-	if !strings.HasPrefix(channel, "#") {
-		channel = "#" + channel
-	}
-
-	server, err, _ := db.Servers.Get(args[0])
-	if err != nil {
-		msg.Client.Send(msg.Where, "failed to get: "+err.Error())
-		return
-	}
-
-	if slices.Contains(server.Channels, channel) {
-		msg.Client.Send(msg.Where, "already in channel")
-		return
-	}
-
-	server.Channels = append(server.Channels, channel)
-
-	err = db.Servers.Put(args[0], server)
-	if err != nil {
-		msg.Client.Send(msg.Where, "failed to put: "+err.Error())
-		return
-	}
-
-	msg.Client.Send(msg.Where, "added channel! will join")
-
-	irc.Sync()
-}
-
-func adminServerChannelsRemove(msg *irc.Message, args []string) {
-	channel := args[1]
-	if !strings.HasPrefix(channel, "#") {
-		channel = "#" + channel
-	}
-
-	server, err, _ := db.Servers.Get(args[0])
-	if err != nil {
-		msg.Client.Send(msg.Where, "failed to get: "+err.Error())
-		return
-	}
-
-	i := slices.Index(server.Channels, channel)
-	if i == -1 {
-		msg.Client.Send(msg.Where, "not in channel")
-		return
-	}
-
-	server.Channels = slices.Delete(server.Channels, i, i+1)
-
-	err = db.Servers.Put(args[0], server)
-	if err != nil {
-		msg.Client.Send(msg.Where, "failed to put: "+err.Error())
-		return
-	}
-
-	msg.Client.Send(msg.Where, "removed channel! will leave")
-
-	irc.Sync()
-}
-
 var adminServer = cmdmenu.Menu[irc.Message]{
 	Name: "server",
 	Commands: []cmdmenu.Runnable[irc.Message]{
@@ -202,23 +152,6 @@ var adminServer = cmdmenu.Menu[irc.Message]{
 					Args:   2,
 					Usage:  "<name> <address>",
 					Handle: adminServerSetAddr,
-				},
-			},
-		},
-		&cmdmenu.Menu[irc.Message]{
-			Name: "channels",
-			Commands: []cmdmenu.Runnable[irc.Message]{
-				&cmdmenu.Command[irc.Message]{
-					Name:   "add",
-					Args:   2,
-					Usage:  "<server name> <channel name>",
-					Handle: adminServerChannelsAdd,
-				},
-				&cmdmenu.Command[irc.Message]{
-					Name:   "remove",
-					Args:   2,
-					Usage:  "<server name> <channel name>",
-					Handle: adminServerChannelsRemove,
 				},
 			},
 		},

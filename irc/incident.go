@@ -4,6 +4,7 @@ import (
 	"log/slog"
 
 	"github.com/makinori/mikogo/env"
+	"github.com/makinori/mikogo/ircf"
 )
 
 // > insert funny reimu image here
@@ -27,5 +28,7 @@ func ReportIncident(msg string) {
 	}
 
 	slog.Info("incident", "msg", msg)
-	homeClient.Send(env.OWNER, "incident: "+msg)
+	homeClient.Send(env.OWNER,
+		ircf.Color(98, 40).Bold().Format("incident")+": "+msg,
+	)
 }

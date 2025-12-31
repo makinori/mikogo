@@ -6,7 +6,6 @@ import (
 	"sync"
 
 	"github.com/makinori/mikogo/db"
-	"github.com/makinori/mikogo/ircf"
 )
 
 var (
@@ -14,25 +13,10 @@ var (
 	clientsMutex = sync.RWMutex{}
 )
 
-func GetStateWithFormatting(name string) string {
+func GetClient(name string) *Client {
 	clientsMutex.RLock()
 	defer clientsMutex.RUnlock()
-
-	client, ok := clients[name]
-	if !ok {
-		return ircf.Bold().Color(98, 40).Format("not found")
-	}
-
-	switch client.state {
-	case ConnStateConnecting:
-		return ircf.Bold().Color(98, 41).Format("connecting")
-	case ConnStateConnected:
-		return ircf.Bold().Color(98, 43).Format("connected")
-	case ConnStateDisconnected:
-		return ircf.Bold().Color(98, 40).Format("disconnected")
-	}
-
-	return "no idea"
+	return clients[name]
 }
 
 func Sync() error {
@@ -58,11 +42,13 @@ func Sync() error {
 				clients[name] = newClient(server.Address)
 			}
 
+			clients[name].setTargetChannels(server.Channels)
+
 			if !clients[name].active {
 				clients[name].init()
+			} else {
+				go clients[name].SyncChannels()
 			}
-
-			// TODO: also sync channels
 		}
 
 		// then remove clients that shouldnt be online

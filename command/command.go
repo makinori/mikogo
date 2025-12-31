@@ -39,6 +39,7 @@ func init() {
 		&CommandGeneralInfo,
 
 		&CommandAdminServer,
+		&CommandAdminChannel,
 		&CommandAdminTest,
 	)
 }
