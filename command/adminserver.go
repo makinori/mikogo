@@ -31,6 +31,11 @@ func adminServerList(msg *irc.Message, args []string) {
 				formattedChannels[i] = ircf.Color(98, 40).Format(channel)
 			}
 		}
+		if len(server.Channels) == 0 {
+			formattedChannels = append(formattedChannels,
+				ircf.Color(98).Format("no channels"),
+			)
+		}
 
 		out += fmt.Sprintf(
 			"%s addr=%s state=%s\n  %s\n",
