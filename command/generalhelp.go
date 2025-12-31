@@ -13,7 +13,8 @@ func handleGeneralHelp(msg *irc.Message, args []string) {
 
 	for i := range commands {
 		command := commands[i]
-		if !canSenderRunCommand(msg, command) {
+		_, canShow := canSenderRunCommand(msg, command)
+		if !canShow {
 			continue
 		}
 		category, _ := categories.Get(command.Category)

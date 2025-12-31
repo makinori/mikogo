@@ -52,13 +52,21 @@ func sendUnknownCommand(msg *irc.Message) {
 	}
 }
 
-func canSenderRunCommand(msg *irc.Message, command *Command) bool {
-	// only allow on home server incase there's a malicious server
-	if msg.Client.Address == env.HOME_SERVER && msg.Sender == env.OWNER {
-		return true
+func canSenderRunCommand(
+	msg *irc.Message, command *Command,
+) (canRun bool, canShow bool) {
+	if !slices.Contains(ownerOnlyCategories, command.Category) {
+		return true, true
 	}
 
-	return !slices.Contains(ownerOnlyCategories, command.Category)
+	// only allow on home server incase there's a malicious server
+	if msg.Client.Address != env.HOME_SERVER {
+		return false, false
+	}
+
+	canRun = msg.Sender == env.OWNER
+	canShow = canRun && !strings.HasPrefix(msg.Where, "#")
+	return
 }
 
 func Run(msg *irc.Message) {
@@ -98,7 +106,8 @@ func Run(msg *irc.Message) {
 		return
 	}
 
-	if canSenderRunCommand(msg, commands[foundCommand]) {
+	canRun, _ := canSenderRunCommand(msg, commands[foundCommand])
+	if canRun {
 		commands[foundCommand].Handle(msg, args)
 	} else {
 		msg.Client.Send(msg.Where, "sorry you can't run that command :(")

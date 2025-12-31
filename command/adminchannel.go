@@ -9,7 +9,7 @@ import (
 	"github.com/makinori/mikogo/irc"
 )
 
-func adminChannelAdd(msg *irc.Message, args []string) {
+func adminChannelJoin(msg *irc.Message, args []string) {
 	channel := args[1]
 	if !strings.HasPrefix(channel, "#") {
 		channel = "#" + channel
@@ -39,7 +39,7 @@ func adminChannelAdd(msg *irc.Message, args []string) {
 	irc.Sync()
 }
 
-func adminChannelRemove(msg *irc.Message, args []string) {
+func adminChannelLeave(msg *irc.Message, args []string) {
 	channel := args[1]
 	if !strings.HasPrefix(channel, "#") {
 		channel = "#" + channel
@@ -83,16 +83,16 @@ var adminChannel = cmdmenu.Menu[irc.Message]{
 			Handle: adminServerList,
 		},
 		&cmdmenu.Command[irc.Message]{
-			Name:   "add",
+			Name:   "join",
 			Args:   2,
 			Usage:  "<server name> <channel name>",
-			Handle: adminChannelAdd,
+			Handle: adminChannelJoin,
 		},
 		&cmdmenu.Command[irc.Message]{
-			Name:   "remove",
+			Name:   "leave",
 			Args:   2,
 			Usage:  "<server name> <channel name>",
-			Handle: adminChannelRemove,
+			Handle: adminChannelLeave,
 		},
 		&cmdmenu.Command[irc.Message]{
 			Name:   "sync",
