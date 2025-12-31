@@ -115,6 +115,7 @@ func (c *Client) SyncChannels() {
 		fmt.Fprintf(c.Conn, "JOIN %s\r\n", target)
 		// TODO: implementation doesnt handle JOIN fails
 		c.channelsCurrent = append(c.channelsCurrent, target)
+		c.slog().Info("channel joined", "name", target)
 	}
 
 	i := 0
@@ -126,6 +127,7 @@ func (c *Client) SyncChannels() {
 		}
 
 		fmt.Fprintf(c.Conn, "PART %s\r\n", current)
+		c.slog().Info("channel left", "name", current)
 	}
 	c.channelsCurrent = c.channelsCurrent[:i]
 }
@@ -240,7 +242,7 @@ func (c *Client) handleMessage(msg string) {
 
 		c.user = matches[2]
 		c.host = matches[3]
-		c.slog().Info("got", "mask", c.user+"@"+c.host)
+		c.slog().Info("got mask", "mask", c.user+"@"+c.host)
 
 		return
 	}
