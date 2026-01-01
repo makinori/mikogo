@@ -23,7 +23,7 @@ func colorHex(c color.NRGBA) string {
 }
 
 func (p *HalfBlockHexColor) IRC() string {
-	return fmt.Sprintf("%c%s,%s", 0x03, colorHex(p.Top), colorHex(p.Bottom))
+	return fmt.Sprintf("%c%s,%s", 0x04, colorHex(p.Top), colorHex(p.Bottom))
 }
 
 type HalfBlockColorCode struct {

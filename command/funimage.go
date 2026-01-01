@@ -30,7 +30,8 @@ func handleFunImage(msg *irc.Message, args []string) {
 		return
 	}
 
-	img := imaging.Resize(image, 0, 20, imaging.Lanczos)
+	height := 20
+	img := imaging.Resize(image, 0, height, imaging.Lanczos)
 	img = imaging.AdjustContrast(img, 10)
 
 	var encodedImg ircimage.HalfBlockImage
@@ -45,6 +46,11 @@ func handleFunImage(msg *irc.Message, args []string) {
 	}
 
 	msg.Client.Send(msg.Where, encodedImg.IRC())
+
+	// lines := strings.Split(encodedImg.IRC(), "\n")
+	// for i := range lines {
+	// 	msg.Client.Send(msg.Where, lines[i])
+	// }
 }
 
 var CommandFunImage = Command{
